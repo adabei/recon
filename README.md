@@ -21,6 +21,12 @@ and confirming with enter. _Note: you don't need to write "rcon" or your passwor
 
 `>say "this sure looks easy"`
 
+## Todo
+
+* add help text with all possible commands
+* load RCON targets from a config file (usage: `./recon.exe myserver`)
+* support more games
+
 
 ## License
 Recon is released under the MIT license. See LICENSE for details.

@@ -5,23 +5,65 @@ import (
   "flag"
   "fmt"
   "os"
+  "strings"
+  "github.com/howeyc/gopass"
+  "github.com/adabei/goldenbot/rcon"
+  "github.com/adabei/goldenbot/rcon/q3"
+  "regexp"
+  "log"
 )
 
 func main(){
-  target := flag.String("target", "127.0.0.1:28960", "ip.address:port of the server")
-  password := flag.String("password", "", "the RCON password")
+  port := flag.Int("p", 28960, "the port to connect to")
+  configPath := flag.String("f", "recon.cfg", "the config file to read connections from")
   flag.Parse()
+  address := flag.Args()[0]
+  password := ""
+
+  matches, _ := regexp.MatchString("[:alnum:]", os.Args[1])
+  if len(os.Args) == 2 && matches {
+    fi, err := os.Open(*configPath)
+
+    if err != nil {
+      log.Fatal("Couldn't open config file: ", err)
+    }
+    sc := bufio.NewScanner(fi)
+
+    for sc.Scan() {
+      line := sc.Text()
+      values := strings.Split(line, ";")
+      if values[0] == os.Args[1] {
+        address = values[1]
+        password = values[2]
+        fi.Close()
+        break
+      }
+    }
+  }
+
+  // naive check
+  if !strings.Contains(address, ":") {
+    address = address + string(*port)
+  }
+  
+  if password == "" {
+    fmt.Print("password: ")
+    password = string(gopass.GetPasswd())
+  }
+
 
   requests := make(chan RCONRequest)
   response := make(chan string)
-	rcon := NewRCON(*target, *password, requests)
-  go rcon.Relay()
-
+	r := q3.NewRCON(address, password, requests)
+  go r.Relay()
+  query := rcon.EasyQuery(requests)
+ 
   scanner := bufio.NewScanner(os.Stdin)
+  fmt.Print(">")
   for scanner.Scan() {
-    requests <- *NewRCONRequest(scanner.Text(), response)
-    res := <- response
+    res := query(scanner.Text())
     fmt.Println(res)
+    fmt.Print(">")
   }
 
   if err := scanner.Err(); err != nil {

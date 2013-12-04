@@ -1,75 +1,80 @@
 package main
 
 import (
-  "bufio"
-  "flag"
-  "fmt"
-  "os"
-  "strings"
-  "github.com/howeyc/gopass"
-  "github.com/adabei/goldenbot/rcon"
-  "github.com/adabei/goldenbot/rcon/q3"
-  "regexp"
-  "log"
+	"bufio"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"github.com/adabei/goldenbot/rcon"
+	"github.com/adabei/goldenbot/rcon/q3"
+	"github.com/howeyc/gopass"
+	"io/ioutil"
+	"log"
+	"os"
+	"regexp"
+	"strings"
 )
 
-func main(){
-  port := flag.Int("p", 28960, "the port to connect to")
-  configPath := flag.String("f", "recon.cfg", "the config file to read connections from")
-  flag.Parse()
-  address := flag.Args()[0]
-  password := ""
+var hosts map[string]Host
 
-  matches, _ := regexp.MatchString("[:alnum:]", os.Args[1])
-  if len(os.Args) == 2 && matches {
-    fi, err := os.Open(*configPath)
+var (
+	// flags
+	protocol = flag.String("pr", "q3", "protocol name (depends on game, see documentation)")
+)
 
-    if err != nil {
-      log.Fatal("Couldn't open config file: ", err)
-    }
-    sc := bufio.NewScanner(fi)
+type Host struct {
+	Type     string
+	Addr     string
+	Password string
+}
 
-    for sc.Scan() {
-      line := sc.Text()
-      values := strings.Split(line, ";")
-      if values[0] == os.Args[1] {
-        address = values[1]
-        password = values[2]
-        fi.Close()
-        break
-      }
-    }
-  }
+func main() {
+	flag.Parse()
 
-  // naive check
-  if !strings.Contains(address, ":") {
-    address = address + string(*port)
-  }
-  
-  if password == "" {
-    fmt.Print("password: ")
-    password = string(gopass.GetPasswd())
-  }
+	addr := "127.0.0.1:28960"
+	password := ""
 
-
-  requests := make(chan RCONRequest)
-  response := make(chan string)
-	r := q3.NewRCON(address, password, requests)
-  go r.Relay()
-  query := rcon.EasyQuery(requests)
- 
-  scanner := bufio.NewScanner(os.Stdin)
-  fmt.Print(">")
-  for scanner.Scan() {
-    res := query(scanner.Text())
-    fmt.Println(res)
-    fmt.Print(">")
-  }
-
-  if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "Reading standard input:", err)
-    os.Exit(1)
+	// ip:port pair
+	if strings.Contains(flag.Arg(0), ":") {
+		addr = flag.Arg(0)
+		fmt.Print("Password: ")
+		password = string(gopass.GetPasswd())
+	} else if matches, _ := regexp.MatchString("[:alnum:]", flag.Arg(0)); matches {
+		load("example.cfg")
+		host := hosts[flag.Arg(0)]
+		addr = host.Addr
+		password = host.Password
+		*protocol = host.Type
 	}
-  
-  os.Exit(0)
+
+	queries := make(chan rcon.RCONQuery)
+	rc := q3.NewRCON(addr, password, queries)
+	ez := rcon.EasyQuery(queries)
+
+	go rc.Relay()
+
+	scanner := bufio.NewScanner(os.Stdin)
+	fmt.Print(">")
+	for scanner.Scan() {
+		res := ez(scanner.Text())
+		fmt.Println(string(res))
+		fmt.Print(">")
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, "Error reading from standard input: ", err)
+		os.Exit(1)
+	}
+}
+
+func load(path string) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = json.Unmarshal(data, &hosts)
+	if err != nil {
+		log.Fatal(err)
+	}
 }

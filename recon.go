@@ -6,7 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/adabei/goldenbot/rcon"
-	"github.com/adabei/goldenbot/rcon/q3"
+	_ "github.com/adabei/goldenbot/rcon/q3"
 	"github.com/howeyc/gopass"
 	"io/ioutil"
 	"log"
@@ -48,10 +48,8 @@ func main() {
 	}
 
 	queries := make(chan rcon.RCONQuery)
-	rc := q3.NewRCON(addr, password, queries)
 	ez := rcon.EasyQuery(queries)
-
-	go rc.Relay()
+  go rcon.Relay(*protocol, addr, password, queries)
 
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Print(">")

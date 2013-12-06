@@ -40,7 +40,7 @@ func main() {
 		fmt.Print("Password: ")
 		password = string(gopass.GetPasswd())
 	} else if matches, _ := regexp.MatchString("[:alnum:]", flag.Arg(0)); matches {
-		load("example.cfg")
+		load(homePath() + "/" + ".recon.cfg")
 		host := hosts[flag.Arg(0)]
 		addr = host.Addr
 		password = host.Password
@@ -77,4 +77,13 @@ func load(path string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// Naive retrival of path for home
+func homePath() string {
+  p := os.Getenv("HOME") // unix
+  if p == "" {
+    p = strings.Replace(os.Getenv("HOMEPATH"), "\\", "/", -1) // windows
+  }
+  return p
 }
